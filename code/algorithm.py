@@ -55,4 +55,16 @@ def method2(R, a, b, alpha, beta):
     N = (1-M**(alpha*beta))**(1/alpha)
     H = 1 - M - N
     return M, N, H
-    
+
+def method2_1(R, a, b, alpha, beta):
+    Nd = normalization(R, a, b)
+    prod1 = R+Nd
+    Nd1 = normalization(prod1, a,b)
+    dis = distance(Nd1)
+    prod2 = product(dis, Nd1)
+    factor = membershipValue(prod2)
+    sum = R + factor
+    M = (normalization(sum,a,b))**beta
+    N = (1-M**(alpha*beta))**(1/alpha)
+    H = 1 - M - N
+    return M, N, H
