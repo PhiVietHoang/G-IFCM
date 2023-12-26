@@ -113,8 +113,8 @@ def method3(R, c, m, alpha, ruler, beta=1, epsilon=1e-6, a=0, b=1):
             for l in range(c):
                 U[i,l] = D[l]/np.sum(D)
         
-        print('U:')
-        print(U)
+        # print('U:')
+        # print(U)
 
         S = np.zeros_like(S_init)
         for l in range(c):
@@ -181,8 +181,8 @@ def method3_1(R, c, m, alpha, ruler, beta=1, epsilon=1e-6, a=0, b=1):
             for l in range(c):
                 U[i,l] = D[l]/np.sum(D)
         
-        print('U:')
-        print(U)
+        # print('U:')
+        # print(U)
 
         S = np.zeros_like(S_init)
         for l in range(c):
@@ -253,18 +253,75 @@ def calculate_CA(y_true, y_pred):
 def calculate_PC(U):
     return np.sum(U ** 2) / U.shape[0]
 
-# def calculate_SC(X, U, centroids):
-#     num = np.sum(U ** 2 * np.linalg.norm(X - centroids[:, np.newaxis], axis=2) ** 2)
-#     den = np.sum(np.linalg.norm(centroids[:, np.newaxis] - centroids, axis=2) ** 2)
-#     return num / den
+def calculate_SC(X, U, centroids, m=2):
+    c = centroids.shape[0]
+    X_mean = np.mean(X, axis=0)
+    n = np.sum(U, axis=0)
+    sc1 = np.mean(np.linalg.norm(centroids - X_mean, axis=(1,2))**2)
+    tmp = 0.0
+    for i in range(c):
+        tmp += sum(np.linalg.norm(X - centroids[i], axis=(1,2))*(U[:,i]**m)/n[i])
+    
+    sc1 /= tmp
+    
+    U_max = np.max(U, axis=1)
+    sc2 = 0.0
+    for i in range(c-1):
+        for r in range(c-i):
+            j = i + r
+            sc2 += sum(np.minimum(U[:,i], U[:,j])**2)/n[i]
+    
+    sc2 /= sum(U_max**2)/sum(U_max)
+            
+    return sc1 - sc2
 
-# def calculate_XB(X, U, centroids):
-#     num = np.sum(U ** 2 * np.linalg.norm(X - centroids[:, np.newaxis], axis=2) ** 2)
-#     min_dist = np.min(np.linalg.norm(centroids[:, np.newaxis] - centroids, axis=2) ** 2 + np.eye(centroids.shape[0]))
-#     return num / (X.shape[0] * min_dist)
+def calculate_XB(X, U, centroids):
+    n = X.shape[0]
+    c = centroids.shape[0]
+    d = np.zeros((c,c))
+    for i in range(c):
+        for j in range(c):
+            d[i,j] = np.linalg.norm(centroids[i]-centroids[j])**2
+    
+    sep = min(d[np.where(d > 0)])
+    tmp = 0.0
+    for i in range(c):
+        tmp += sum(np.linalg.norm(X - centroids[i], axis=(1,2))*(U[:,i]**2))
+    
+    return tmp/n/sep
 
-# def calculate_DI(X, U, centroids):
-#     distances = np.linalg.norm(centroids[:, np.newaxis] - centroids, axis=2) + np.eye(centroids.shape[0]) * np.inf
-#     min_intercluster_distance = np.min(distances)
-#     max_intracluster_distance = max(np.max(np.linalg.norm(X - centroids[c], axis=1)) for c in range(centroids.shape[0]))
-#     return min_intercluster_distance / max_intracluster_distance
+def calculate_DI(X, U):
+    c = U.shape[1]
+    n = X.shape[0]
+    A = []
+    for i in range(c):
+        A.append([])
+    
+    ids = np.argmax(U, axis=1)
+    for i in range(n):
+        A[ids[i]].append(X[i])
+
+    dias = np.zeros(c)
+    for i in range(c):
+        q = len(A[i])
+        dia = np.zeros((q,q))
+        for j in range(q):
+            for k in range(q):
+                dia[j,k] = np.linalg.norm(A[i][j] - A[i][k])
+        dias[i] = np.max(dia[np.where(dia > 0)])
+        
+    dia_max = np.max(dias)
+    
+    min_dis = np.linalg.norm(A[0][0] - A[1][0])
+    for i in range(c):
+        for j in range(i+1, c-i):
+            q1 = len(A[i])
+            q2 = len(A[j])
+            dis = np.zeros((q1,q2))
+            for i1 in range(q1):
+                for i2 in range(q2):
+                    dis[i1, i2] = np.linalg.norm(A[i][i1] - A[j][i2])
+            if min_dis > np.min(dis):
+                min_dis = np.min(dis)
+    
+    return min_dis/dia_max
