@@ -96,13 +96,13 @@ def method3(R, c, m, alpha, ruler, beta=1, epsilon=1e-6, a=0, b=1):
     N_S = nonMembershipValue(M_S, alpha)
     H_S = hesitancyValue(M_S, alpha)
     S_init = np.dstack((M_S, N_S, H_S))
-    print('Initial centroids:')
-    print(S_init)
+    # print('Initial centroids:')
+    # print(S_init)
     P = X.shape[0]
     iter_num = 0
     
     while 1:
-        print(f'iteration: {iter_num}')
+        # print(f'iteration: {iter_num}')
         U = np.zeros((P, c))
         for i in range(P):
             D = np.zeros(c)
@@ -123,14 +123,14 @@ def method3(R, c, m, alpha, ruler, beta=1, epsilon=1e-6, a=0, b=1):
             pi_l = np.sum(np.array([(U[i,l]**m)*H[i] for i in range(P)]), axis=0)/np.sum(U[:,l]**m)
             S[l] = np.dstack((mu_l, nu_l, pi_l))
         
-        print('S:')
-        print(S)
+        # print('S:')
+        # print(S)
         
         criteria = 0
         for l in range(c):
             criteria += ((1/(2*P)*distance_func(S_init[l], S[l]))**(1/2))/c
         
-        print(f'\nNorm diff: {criteria}\n')
+        # print(f'\nNorm diff: {criteria}\n')
         if criteria < epsilon: break
         
         iter_num += 1
@@ -164,13 +164,13 @@ def method3_1(R, c, m, alpha, ruler, beta=1, epsilon=1e-6, a=0, b=1):
     N_S = nonMembershipValue(M_S, alpha)
     H_S = hesitancyValue(M_S, alpha)
     S_init = np.dstack((M_S, N_S, H_S))
-    print('Initial centroids:')
-    print(S_init)
+    # print('Initial centroids:')
+    # print(S_init)
     P = X.shape[0]
     iter_num = 0
     
     while 1:
-        print(f'iteration: {iter_num}')
+        # print(f'iteration: {iter_num}')
         U = np.zeros((P, c))
         for i in range(P):
             D = np.zeros(c)
@@ -191,14 +191,14 @@ def method3_1(R, c, m, alpha, ruler, beta=1, epsilon=1e-6, a=0, b=1):
             pi_l = np.sum(np.array([(U[i,l]**m)*H[i] for i in range(P)]), axis=0)/np.sum(U[:,l]**m)
             S[l] = np.dstack((mu_l, nu_l, pi_l))
         
-        print('S:')
-        print(S)
+        # print('S:')
+        # print(S)
         
         criteria = 0
         for l in range(c):
             criteria += ((1/(2*P)*distance_func(S_init[l], S[l]))**(1/2))/c
         
-        print(f'\nNorm diff: {criteria}\n')
+        # print(f'\nNorm diff: {criteria}\n')
         if criteria < epsilon: break
         
         iter_num += 1
@@ -254,26 +254,28 @@ def calculate_PC(U):
     return np.sum(U ** 2) / U.shape[0]
 
 def calculate_SC(X, U, centroids, m=2):
-    c = centroids.shape[0]
-    X_mean = np.mean(X, axis=0)
-    n = np.sum(U, axis=0)
-    sc1 = np.mean(np.linalg.norm(centroids - X_mean, axis=(1,2))**2)
-    tmp = 0.0
-    for i in range(c):
-        tmp += sum(np.linalg.norm(X - centroids[i], axis=(1,2))*(U[:,i]**m)/n[i])
+    # Số lượng điểm dữ liệu và cụm
+    P, C = U.shape
     
-    sc1 /= tmp
-    
-    U_max = np.max(U, axis=1)
-    sc2 = 0.0
-    for i in range(c-1):
-        for r in range(c-i):
-            j = i + r
-            sc2 += sum(np.minimum(U[:,i], U[:,j])**2)/n[i]
-    
-    sc2 /= sum(U_max**2)/sum(U_max)
-            
-    return sc1 - sc2
+    # Tính tử số của SC - tổng độ đậm đặc của các cụm
+    numerator = 0.0
+    for i in range(P):
+        for j in range(C):
+            numerator += U[i, j] ** m * np.linalg.norm(X[i] - centroids[j]) ** 2
+
+    # Tính mẫu số của SC - tổng khoảng cách giữa các tâm cụm
+    denominator = 0.0
+    for k in range(P):
+        for l in range(C):
+            denominator += U[k, l] * np.sum([np.linalg.norm(centroids[l] - centroids[t]) ** 2 for t in range(C)])
+
+    # Đảm bảo mẫu số không phải là zero để tránh lỗi chia cho zero
+    if denominator == 0:
+        return np.inf
+
+    SC = numerator / denominator
+
+    return SC
 
 def calculate_XB(X, U, centroids):
     n = X.shape[0]
