@@ -37,6 +37,27 @@ def hesitancyValue(N,alpha):
     H = 1-N-(1-N**alpha)**(1/alpha)
     return H
 
+def combined_distance(x, y, weights):
+    distances = np.array([distance_function(x, y),
+                          hamming_distance(x, y),
+                          euclidean_distance(x, y),
+                          normalized_euclidean_distance(x, y),
+                          hausdorff_distance(x, y),
+                          yang_chiclana_distance(x, y),
+                          wang_xin_distance(x, y),
+                          liu_jiang_distance(x, y),
+                          he_distance(x, y),
+                          thao_distance(x, y),
+                          mahanta_panda_distance(x, y)])
+
+    # Đặt trọng số cho từng độ đo
+    weighted_distances = distances * weights
+
+    # Tính trung bình có trọng số
+    combined_distance = np.sum(weighted_distances) / np.sum(weights)
+    
+    return combined_distance
+
 def method1(R, alpha, a=0, b=1):
     Nd = normalization(R, a, b)
     dis = distance(Nd)
@@ -205,7 +226,75 @@ def method3_1(R, c, m, alpha, ruler, beta=1, epsilon=1e-6, a=0, b=1):
         S_init = S
     
     return U, S
+
+def method3_combined(R, c, m, alpha, weights_array, beta=1, epsilon=1e-6, a=0, b=1):
+    # distance_functions = {
+    #     'distance_function': distance_function,
+    #     'hamming_distance': hamming_distance,
+    #     'euclidean_distance': euclidean_distance,
+    #     'normalized_euclidean_distance': normalized_euclidean_distance,
+    #     'hausdorff_distance': hausdorff_distance,
+    #     'yang_chiclana_distance': yang_chiclana_distance,
+    #     'wang_xin_distance': wang_xin_distance,
+    #     'liu_jiang_distance': liu_jiang_distance,
+    #     'he_distance': he_distance,
+    #     'thao_distance': thao_distance,
+    #     'mahanta_panda_distance': mahanta_panda_distance,
+    # }
+    
+    # distance_func = distance_functions.get(ruler)
+    # if not distance_func:
+    #     raise ValueError(f'Unknown ruler: {ruler}')
+    
+    M, N, H = method1(R, alpha)
+    X = np.dstack((M, N, H))
+    d = X.shape[1]
+    M_S = np.random.rand(c, d)
+    N_S = nonMembershipValue(M_S, alpha)
+    H_S = hesitancyValue(M_S, alpha)
+    S_init = np.dstack((M_S, N_S, H_S))
+    # print('Initial centroids:')
+    # print(S_init)
+    P = X.shape[0]
+    iter_num = 0
+    
+    while 1:
+        # print(f'iteration: {iter_num}')
+        U = np.zeros((P, c))
+        for i in range(P):
+            D = np.zeros(c)
+            for k in range(c):
+                D[k] = 1/(2*P)*combined_distance(X[i], S_init[k], weights_array)**(1/(m-1))
+            
+            D=D**(-1)
+            for l in range(c):
+                U[i,l] = D[l]/np.sum(D)
         
+        # print('U:')
+        # print(U)
+
+        S = np.zeros_like(S_init)
+        for l in range(c):
+            mu_l = np.sum(np.array([(U[i,l]**m)*M[i] for i in range(P)]), axis=0)/np.sum(U[:,l]**m)
+            nu_l = np.sum(np.array([(U[i,l]**m)*N[i] for i in range(P)]), axis=0)/np.sum(U[:,l]**m)
+            pi_l = np.sum(np.array([(U[i,l]**m)*H[i] for i in range(P)]), axis=0)/np.sum(U[:,l]**m)
+            S[l] = np.dstack((mu_l, nu_l, pi_l))
+        
+        # print('S:')
+        # print(S)
+        
+        criteria = 0
+        for l in range(c):
+            criteria += ((1/(2*P)*combined_distance(S_init[l], S[l], weights_array))**(1/2))/c
+        
+        # print(f'\nNorm diff: {criteria}\n')
+        if criteria < epsilon: break
+        
+        iter_num += 1
+        S_init = S
+    
+    return U, S
+
 def distance_function(x, y):
     return np.sum((x-y)**2)
 
@@ -293,37 +382,41 @@ def calculate_XB(X, U, centroids):
     return tmp/n/sep
 
 def calculate_DI(X, U):
-    c = U.shape[1]
-    n = X.shape[0]
-    A = []
-    for i in range(c):
-        A.append([])
-    
-    ids = np.argmax(U, axis=1)
-    for i in range(n):
-        A[ids[i]].append(X[i])
-
-    dias = np.zeros(c)
-    for i in range(c):
-        q = len(A[i])
-        dia = np.zeros((q,q))
-        for j in range(q):
-            for k in range(q):
-                dia[j,k] = np.linalg.norm(A[i][j] - A[i][k])
-        dias[i] = np.max(dia[np.where(dia > 0)])
+    try:
+        c = U.shape[1]
+        n = X.shape[0]
+        A = []
+        for i in range(c):
+            A.append([])
         
-    dia_max = np.max(dias)
-    
-    min_dis = np.linalg.norm(A[0][0] - A[1][0])
-    for i in range(c):
-        for j in range(i+1, c-i):
-            q1 = len(A[i])
-            q2 = len(A[j])
-            dis = np.zeros((q1,q2))
-            for i1 in range(q1):
-                for i2 in range(q2):
-                    dis[i1, i2] = np.linalg.norm(A[i][i1] - A[j][i2])
-            if min_dis > np.min(dis):
-                min_dis = np.min(dis)
-    
-    return min_dis/dia_max
+        ids = np.argmax(U, axis=1)
+        for i in range(n):
+            A[ids[i]].append(X[i])
+
+        dias = np.zeros(c)
+        for i in range(c):
+            q = len(A[i])
+            dia = np.zeros((q,q))
+            for j in range(q):
+                for k in range(q):
+                    dia[j,k] = np.linalg.norm(A[i][j] - A[i][k])
+            dias[i] = np.max(dia[np.where(dia > 0)])
+            
+        dia_max = np.max(dias)
+        
+        min_dis = np.linalg.norm(A[0][0] - A[1][0])
+        for i in range(c):
+            for j in range(i+1, c-i):
+                q1 = len(A[i])
+                q2 = len(A[j])
+                dis = np.zeros((q1,q2))
+                for i1 in range(q1):
+                    for i2 in range(q2):
+                        dis[i1, i2] = np.linalg.norm(A[i][i1] - A[j][i2])
+                if min_dis > np.min(dis):
+                    min_dis = np.min(dis)
+        
+        return min_dis/dia_max
+    except Exception as e:
+        print(f"Error calculating DI: {e}")
+        return 0
